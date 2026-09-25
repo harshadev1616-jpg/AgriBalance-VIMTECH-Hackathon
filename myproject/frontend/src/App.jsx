@@ -121,7 +121,7 @@ function Skeleton() {
 }
 
 function DataState({ children }) {
-  return <div className="flex min-h-48 items-center justify-center rounded-md border border-dashed border-white/10 px-4 text-center text-sm text-slate-500">{children}</div>;
+  return <div className="flex items-center justify-center rounded-md border border-dashed border-white/10 px-4 py-8 text-center text-sm text-slate-500">{children}</div>;
 }
 
 function FieldSelect({ label, options, value, onChange }) {
@@ -255,6 +255,25 @@ export default function App() {
     };
   }, [district, crop]);
 
+  useEffect(() => {
+    let active = true;
+    api.profitCalculator({
+      district,
+      crop,
+      farm_size: Number(farmSize),
+      budget: Number(budget),
+      soil: "Loamy",
+      water: Number(water),
+    }).then((result) => {
+      if (active) setProfit(result);
+    }).catch(() => {
+      if (active) setProfit(null);
+    });
+    return () => {
+      active = false;
+    };
+  }, [district, crop]);
+
   async function askAssistant(event) {
     event.preventDefault();
     setAsking(true);
@@ -376,8 +395,8 @@ export default function App() {
               <p className="mt-4 text-sm text-slate-400">Actual mandi data is unavailable right now. No live price is shown.</p>
             ) : (
               <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                <div className="rounded-md bg-white/10 p-3">Minimum<br /><strong>{state.marketActual?.price_range?.min ?? "--"}</strong></div>
-                <div className="rounded-md bg-white/10 p-3">Maximum<br /><strong>{state.marketActual?.price_range?.max ?? "--"}</strong></div>
+                <div className="rounded-md bg-white/10 p-3">Minimum<br /><strong>{state.marketActual?.price_range?.min ?? "Unavailable"}</strong></div>
+                <div className="rounded-md bg-white/10 p-3">Maximum<br /><strong>{state.marketActual?.price_range?.max ?? "Unavailable"}</strong></div>
                 <div className="col-span-2 text-xs text-slate-500">{state.marketActual?.data_status || "Actual data status unavailable"}</div>
               </div>
             )}
@@ -450,9 +469,7 @@ export default function App() {
               <LineChart className="text-sky-300" size={22} />
               <h2 className="text-xl font-semibold text-white">Smart District Comparison</h2>
             </div>
-            <div className="mt-5 h-80">
-              {comparison.length ? <Bar data={comparisonChart} options={comparisonChartOptions} /> : <DataState>District comparison data is unavailable.</DataState>}
-            </div>
+            {comparison.length ? <div className="mt-5 h-80"><Bar data={comparisonChart} options={comparisonChartOptions} /></div> : <div className="mt-5"><DataState>District comparison data is unavailable.</DataState></div>}
           </Panel>
         </div>
 
@@ -462,13 +479,11 @@ export default function App() {
               <TrendingUp className="text-cyan-300" size={22} />
               <h2 className="text-xl font-semibold text-white">Market Intelligence</h2>
             </div>
-            <div className="mt-5 h-72">
-              {state.market?.price_forecast?.length ? <Line data={marketChart} options={chartOptions} /> : <DataState>Market trend data is unavailable.</DataState>}
-            </div>
+            {state.market?.price_forecast?.length ? <div className="mt-5 h-72"><Line data={marketChart} options={chartOptions} /></div> : <div className="mt-5"><DataState>Market trend data is unavailable.</DataState></div>}
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              <Stat title="Demand" value={`${state.market?.demand ?? "--"}/100`} icon={BarChart3} tone="text-emerald-300" />
-              <Stat title="Saturation" value={`${state.market?.market_saturation ?? "--"}%`} icon={Factory} tone="text-rose-300" />
-              <Stat title="Sell window" value={state.market?.best_selling_window} icon={Download} tone="text-amber-300" />
+              <Stat title="Demand" value={state.market?.demand == null ? "Unavailable" : `${state.market.demand}/100`} icon={BarChart3} tone="text-emerald-300" />
+              <Stat title="Saturation" value={state.market?.market_saturation == null ? "Unavailable" : `${state.market.market_saturation}%`} icon={Factory} tone="text-rose-300" />
+              <Stat title="Sell window" value={state.market?.best_selling_window || "Unavailable"} icon={Download} tone="text-amber-300" />
             </div>
           </Panel>
 
@@ -573,9 +588,9 @@ export default function App() {
               <h2 className="text-xl font-semibold text-white">Government Dashboard</h2>
             </div>
             <div className="mt-5 grid gap-3">
-              <Stat title="Crop diversity" value={`${state.government?.crop_diversity ?? "--"}/100`} icon={Globe2} tone="text-emerald-300" />
-              <Stat title="Food security" value={`${state.government?.food_security ?? "--"}/100`} icon={Leaf} tone="text-sky-300" />
-              <Stat title="Water usage risk" value={`${state.government?.water_usage ?? "--"}/100`} icon={Waves} tone="text-cyan-300" />
+              <Stat title="Crop diversity" value={state.government?.crop_diversity == null ? "Unavailable" : `${state.government.crop_diversity}/100`} icon={Globe2} tone="text-emerald-300" />
+              <Stat title="Food security" value={state.government?.food_security == null ? "Unavailable" : `${state.government.food_security}/100`} icon={Leaf} tone="text-sky-300" />
+              <Stat title="Water usage risk" value={state.government?.water_usage == null ? "Unavailable" : `${state.government.water_usage}/100`} icon={Waves} tone="text-cyan-300" />
             </div>
           </Panel>
         </section>
