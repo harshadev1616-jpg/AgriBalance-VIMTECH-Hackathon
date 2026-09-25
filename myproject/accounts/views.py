@@ -2,7 +2,8 @@ from rest_framework import generics, permissions
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-from .serializers import LoginSerializer, RegisterSerializer, UserSerializer
+from .models import FarmerProfile
+from .serializers import FarmerProfileSerializer, LoginSerializer, RegisterSerializer, UserSerializer
 
 
 class RegisterView(generics.CreateAPIView):
@@ -23,6 +24,15 @@ class ProfileView(generics.RetrieveAPIView):
 
     def get_object(self):
         return self.request.user
+
+
+class FarmerProfileView(generics.RetrieveUpdateAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = FarmerProfileSerializer
+
+    def get_object(self):
+        profile, _ = FarmerProfile.objects.get_or_create(user=self.request.user)
+        return profile
 
 
 class LogoutView(generics.GenericAPIView):

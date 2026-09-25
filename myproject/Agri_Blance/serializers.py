@@ -1,5 +1,7 @@
 from rest_framework import serializers
 
+from .models import GovernmentScheme
+
 
 class GeoQuerySerializer(serializers.Serializer):
     lat = serializers.FloatField(min_value=-90, max_value=90)
@@ -90,3 +92,38 @@ class ProfitCalculatorSerializer(serializers.Serializer):
     labor_cost = serializers.FloatField(default=0, min_value=0)
     irrigation_cost = serializers.FloatField(default=0, min_value=0)
     other_cost = serializers.FloatField(default=0, min_value=0)
+
+
+class SchemeQuerySerializer(serializers.Serializer):
+    state = serializers.CharField(required=False, max_length=80)
+    crop = serializers.CharField(required=False, max_length=80)
+    farmer_category = serializers.CharField(required=False, max_length=20)
+    district = serializers.CharField(required=False, max_length=80)
+
+
+class GovernmentSchemeSerializer(serializers.ModelSerializer):
+    data_status = serializers.SerializerMethodField()
+
+    class Meta:
+        model = GovernmentScheme
+        fields = (
+            "id", "name", "department", "description", "eligibility", "state", "crops",
+            "farmer_categories", "benefits", "required_documents", "application_process",
+            "deadline", "official_source_url", "application_url", "is_verified", "data_status",
+        )
+
+    def get_data_status(self, obj):
+        return "verified" if obj.is_verified else "unverified_admin_data"
+
+
+class PriceIntelligenceSerializer(serializers.Serializer):
+    state = serializers.CharField(default="Karnataka", max_length=80)
+    district = serializers.CharField(required=False, max_length=80)
+    districts = serializers.CharField(required=False, max_length=500)
+    commodity = serializers.CharField(required=False, max_length=80)
+    limit = serializers.IntegerField(default=50, min_value=1, max_value=1000)
+
+
+class DailyDecisionSerializer(serializers.Serializer):
+    district = serializers.CharField(required=False, max_length=80)
+    crop = serializers.CharField(required=False, max_length=80)

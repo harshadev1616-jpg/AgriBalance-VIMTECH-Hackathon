@@ -1,5 +1,9 @@
 from django.test import TestCase
+from django.contrib.auth import get_user_model
+from rest_framework.test import APITestCase
 
+from .models import GovernmentScheme
+from .services.schemes import matching_schemes
 from .services.intelligence import AgricultureIntelligenceEngine
 
 
@@ -98,3 +102,46 @@ class ProfitCalculatorTests(TestCase):
         self.assertEqual(result_at_300["total_yield"], 900)
         self.assertEqual(result_at_300["revenue"], 1350000)
         self.assertEqual(result_at_300["net_profit"], 1279000)
+
+
+class GovernmentSchemeMatchingTests(TestCase):
+    def setUp(self):
+        GovernmentScheme.objects.create(
+            name="Karnataka Rice Support",
+            description="Support for eligible rice farmers.",
+            eligibility="Rice farmers in Karnataka.",
+            state="Karnataka",
+            crops=["Rice"],
+            farmer_categories=["small"],
+            benefits="Seed support",
+            application_process="Apply through the official department.",
+            is_verified=True,
+        )
+        GovernmentScheme.objects.create(
+            name="National General Support",
+            description="General support.",
+            eligibility="Eligible farmers.",
+            benefits="Support varies.",
+            application_process="Check the official source.",
+        )
+
+    def test_filters_by_state_crop_and_category(self):
+        matches = matching_schemes({"state": "Karnataka", "crop": "Rice", "farmer_category": "small"})
+        self.assertEqual({scheme.name for scheme in matches}, {"Karnataka Rice Support", "National General Support"})
+
+
+class FarmerProfileTests(TestCase):
+    def test_profile_is_one_per_user(self):
+        user = get_user_model().objects.create_user(username="farmer", password="strong-password-123")
+        from accounts.models import FarmerProfile
+
+        profile = FarmerProfile.objects.create(user=user, crops=["Rice"], land_size_hectares=1.5)
+        self.assertEqual(user.farmer_profile, profile)
+
+
+class GovernmentSchemeApiTests(APITestCase):
+    def test_scheme_endpoint_returns_empty_state_without_fabricating_records(self):
+        response = self.client.get("/api/schemes/?state=Karnataka&crop=Rice")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 0)
+        self.assertEqual(response.data["results"], [])

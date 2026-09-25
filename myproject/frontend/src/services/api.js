@@ -30,6 +30,10 @@ export const api = {
     if (commodity) query.set("commodity", commodity);
     return request(`/market/prices/?${query.toString()}`);
   },
+  marketPriceIntelligence: (params = {}) => {
+    const query = new URLSearchParams(params);
+    return request(`/market/price-intelligence/?${query.toString()}`);
+  },
   predictYield: (payload) =>
     request("/ai/yield-prediction/", {
       method: "POST",
@@ -64,4 +68,18 @@ export const api = {
   satelliteAnalytics: (district) => request(`/earth/satellite-analytics/?district=${encodeURIComponent(district)}`),
   adminAnalytics: () => request("/analytics/admin/"),
   governmentDashboard: () => request("/dashboard/government/"),
+  schemes: (params = {}) => {
+    const query = new URLSearchParams(params);
+    return request(`/schemes/?${query.toString()}`);
+  },
+  dailyDecision: (params = {}) => {
+    const query = new URLSearchParams(params);
+    return request(`/decision/today/?${query.toString()}`);
+  },
+  farmerProfile: () => request("/auth/farmer-profile/"),
+  updateFarmerProfile: (payload) =>
+    request("/auth/farmer-profile/", {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
 };

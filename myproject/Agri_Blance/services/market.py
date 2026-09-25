@@ -1,4 +1,5 @@
 from django.conf import settings
+from datetime import datetime
 
 from .base import ApiClient
 
@@ -44,4 +45,64 @@ class MarketDataClient(ApiClient):
             "average_modal_price": round(sum(prices) / len(prices), 2),
             "min": min(prices),
             "max": max(prices),
+        }
+
+    def price_intelligence(self, state="Karnataka", district=None, commodity=None, limit=50):
+        data = self.crop_prices(state=state, district=district, commodity=commodity, limit=limit)
+        records = data["records"]
+        history = []
+        for record in records:
+            price = self._record_price(record)
+            date_value = record.get("arrival_date") or record.get("arrival date") or record.get("date")
+            if price is None:
+                continue
+            history.append({"date": date_value, "price": price, "market": record.get("market"), "district": record.get("district")})
+        dated = [item for item in history if self._parse_date(item["date"])]
+        dated.sort(key=lambda item: self._parse_date(item["date"]))
+        direction = "stable"
+        if len(dated) >= 2:
+            change = dated[-1]["price"] - dated[0]["price"]
+            threshold = max(1, abs(dated[0]["price"]) * 0.02)
+            direction = "increasing" if change > threshold else "decreasing" if change < -threshold else "stable"
+        prediction = self._prediction(dated)
+        return {
+            **data,
+            "data_status": "actual_external_api",
+            "history": dated,
+            "price_range": data["trend"],
+            "trend_direction": direction,
+            "prediction": prediction,
+        }
+
+    def _record_price(self, record):
+        value = record.get("modal_price") or record.get("modal price")
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    def _parse_date(self, value):
+        if not value:
+            return None
+        for date_format in ("%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y"):
+            try:
+                return datetime.strptime(str(value), date_format)
+            except ValueError:
+                continue
+        return None
+
+    def _prediction(self, dated):
+        if len(dated) < 2:
+            return {"available": False, "reason": "At least two dated actual prices are required."}
+        recent = dated[-min(len(dated), 12):]
+        slope = (recent[-1]["price"] - recent[0]["price"]) / max(len(recent) - 1, 1)
+        estimate = max(0, round(recent[-1]["price"] + slope, 2))
+        confidence = "low" if len(recent) < 5 else "moderate"
+        return {
+            "available": True,
+            "next_estimate": estimate,
+            "confidence": confidence,
+            "method": "simple_recent_linear_trend",
+            "factors": ["recent actual modal prices", "number of available observations"],
+            "disclaimer": "This is a trend estimate, not a guaranteed price.",
         }

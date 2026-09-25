@@ -12,12 +12,15 @@ from .views import (
     HealthView,
     MarketIntelligenceView,
     MarketPricesView,
+    MarketPriceIntelligenceView,
     NasaImageryView,
     ProfitCalculatorView,
     SatelliteAnalyticsView,
     SoilProfileView,
     SmartNotificationsView,
     YieldPredictionView,
+    DailyDecisionView,
+    GovernmentSchemeListView,
 )
 
 urlpatterns = [
@@ -27,6 +30,7 @@ urlpatterns = [
     path("earth/imagery/", NasaImageryView.as_view(), name="nasa-imagery"),
     path("soil/profile/", SoilProfileView.as_view(), name="soil-profile"),
     path("market/prices/", MarketPricesView.as_view(), name="market-prices"),
+    path("market/price-intelligence/", MarketPriceIntelligenceView.as_view(), name="market-price-intelligence"),
     path("ai/yield-prediction/", YieldPredictionView.as_view(), name="yield-prediction"),
     path("ai/crop-balancing/", CropBalancingView.as_view(), name="crop-balancing"),
     path("districts/heatmap/", DistrictHeatmapView.as_view(), name="district-heatmap"),
@@ -38,4 +42,6 @@ urlpatterns = [
     path("earth/satellite-analytics/", SatelliteAnalyticsView.as_view(), name="satellite-analytics"),
     path("analytics/admin/", AdminAnalyticsView.as_view(), name="admin-analytics"),
     path("dashboard/government/", GovernmentDashboardView.as_view(), name="government-dashboard"),
+    path("schemes/", GovernmentSchemeListView.as_view(), name="government-schemes"),
+    path("decision/today/", DailyDecisionView.as_view(), name="daily-decision"),
 ]

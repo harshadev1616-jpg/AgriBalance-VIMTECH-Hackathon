@@ -12,12 +12,19 @@ from .serializers import (
     MarketIntelligenceSerializer,
     NasaImageryQuerySerializer,
     ProfitCalculatorSerializer,
+    DailyDecisionSerializer,
+    GovernmentSchemeSerializer,
+    PriceIntelligenceSerializer,
+    SchemeQuerySerializer,
     SoilQuerySerializer,
     WeatherQuerySerializer,
     YieldPredictionSerializer,
 )
 from .services import MarketDataClient, NasaEarthClient, OpenWeatherClient, SoilGridsClient
 from .services.intelligence import AgricultureIntelligenceEngine
+from .services.decision import DailyDecisionService
+from .services.schemes import matching_schemes
+from .models import GovernmentScheme
 
 
 class HealthView(APIView):
@@ -81,6 +88,23 @@ class MarketPricesView(APIView):
         serializer.is_valid(raise_exception=True)
         data = MarketDataClient().crop_prices(**serializer.validated_data)
         return Response(data)
+
+
+class MarketPriceIntelligenceView(APIView):
+    permission_classes = [IsAuthenticatedOrReadOnly]
+
+    def get(self, request):
+        serializer = PriceIntelligenceSerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        payload = serializer.validated_data
+        districts = [item.strip() for item in payload.pop("districts", "").split(",") if item.strip()]
+        if districts:
+            payload.pop("district", None)
+            return Response({
+                "data_status": "actual_external_api",
+                "comparisons": [MarketDataClient().price_intelligence(district=district, **payload) for district in districts],
+            })
+        return Response(MarketDataClient().price_intelligence(**payload))
 
 
 class YieldPredictionView(APIView):
@@ -178,3 +202,38 @@ class GovernmentDashboardView(APIView):
 
     def get(self, request):
         return Response(AgricultureIntelligenceEngine().government_dashboard())
+
+
+class GovernmentSchemeListView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        serializer = SchemeQuerySerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        filters = serializer.validated_data
+        if request.user.is_authenticated:
+            profile = getattr(request.user, "farmer_profile", None)
+            if profile:
+                filters.setdefault("state", profile.state)
+                filters.setdefault("farmer_category", profile.farmer_category)
+                if profile.crops and not filters.get("crop"):
+                    filters["crop"] = profile.crops[0]
+        schemes = matching_schemes(filters)
+        return Response({
+            "count": len(schemes),
+            "data_status": "verified_only" if all(item.is_verified for item in schemes) else "contains_unverified_admin_data",
+            "results": GovernmentSchemeSerializer(schemes, many=True).data,
+        })
+
+
+class DailyDecisionView(APIView):
+    permission_classes = [IsAuthenticatedOrReadOnly]
+
+    def get(self, request):
+        serializer = DailyDecisionSerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        payload = serializer.validated_data
+        profile = getattr(request.user, "farmer_profile", None) if request.user.is_authenticated else None
+        district = payload.get("district") or (profile.district if profile and profile.district else "Mandya")
+        crop = payload.get("crop") or (profile.crops[0] if profile and profile.crops else "Tomato")
+        return Response(DailyDecisionService().build(district=district, crop=crop, profile=profile))
