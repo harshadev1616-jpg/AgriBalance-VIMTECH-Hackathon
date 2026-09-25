@@ -3,6 +3,8 @@ import {
   AlertTriangle,
   BarChart3,
   Bot,
+  Check,
+  ChevronDown,
   CloudRain,
   Download,
   Factory,
@@ -114,6 +116,46 @@ function ScoreBar({ label, value, tone = "bg-emerald-400" }) {
 
 function Skeleton() {
   return <div className="h-10 animate-pulse rounded-md bg-white/10" />;
+}
+
+function FieldSelect({ label, options, value, onChange }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="relative min-w-[148px]">
+      <button
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        aria-label={label}
+        className="flex w-full items-center justify-between gap-3 rounded-md border border-white/15 bg-slate-900 px-3 py-2 text-left text-base font-medium text-white shadow-sm transition hover:border-emerald-300/60 focus:outline-none focus:ring-2 focus:ring-emerald-300/60"
+        onClick={() => setOpen((current) => !current)}
+        type="button"
+      >
+        <span className="truncate">{value}</span>
+        <ChevronDown className={`shrink-0 transition ${open ? "rotate-180" : ""}`} size={18} />
+      </button>
+      {open ? (
+        <div className="absolute left-0 right-0 top-[calc(100%+0.35rem)] z-50 max-h-72 overflow-y-auto rounded-md border border-white/15 bg-slate-900 p-1 shadow-2xl shadow-black/40" role="listbox" aria-label={label}>
+          {options.map((option) => (
+            <button
+              aria-selected={option === value}
+              className="flex w-full items-center justify-between rounded px-3 py-2.5 text-left text-base text-slate-100 transition hover:bg-emerald-400/15 hover:text-white focus:bg-emerald-400/15 focus:outline-none"
+              key={option}
+              onClick={() => {
+                onChange(option);
+                setOpen(false);
+              }}
+              role="option"
+              type="button"
+            >
+              <span>{option}</span>
+              {option === value ? <Check className="text-emerald-300" size={16} /> : null}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 export default function App() {
@@ -274,12 +316,8 @@ export default function App() {
             <h1 className="mt-1 text-3xl font-semibold text-white">Crop Planning Command Center</h1>
           </div>
           <div className="flex flex-wrap gap-3">
-            <select className="rounded-md border border-white/10 bg-slate-900 px-3 py-2 text-sm text-white" value={district} onChange={(event) => setDistrict(event.target.value)}>
-              {districts.map((item) => <option key={item}>{item}</option>)}
-            </select>
-            <select className="rounded-md border border-white/10 bg-slate-900 px-3 py-2 text-sm text-white" value={crop} onChange={(event) => setCrop(event.target.value)}>
-              {crops.map((item) => <option key={item}>{item}</option>)}
-            </select>
+            <FieldSelect label="District" options={districts} value={district} onChange={setDistrict} />
+            <FieldSelect label="Crop" options={crops} value={crop} onChange={setCrop} />
           </div>
         </div>
       </header>
