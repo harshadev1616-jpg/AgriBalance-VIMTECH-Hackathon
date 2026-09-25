@@ -104,6 +104,17 @@ class ProfitCalculatorTests(TestCase):
         self.assertEqual(result_at_300["net_profit"], 1279000)
 
 
+class VisualizationDataTests(TestCase):
+    def test_crop_balancing_exposes_real_visualization_values(self):
+        result = AgricultureIntelligenceEngine().crop_balancing("Mysuru")
+        crop = result["top_recommended_crops"][0]
+        self.assertIsInstance(crop["expected_profit"], int)
+        self.assertGreaterEqual(crop["profit_score"], 0)
+        self.assertLessEqual(crop["profit_score"], 100)
+        self.assertGreaterEqual(crop["oversupply_risk"], 0)
+        self.assertLessEqual(crop["oversupply_risk"], 97)
+
+
 class GovernmentSchemeMatchingTests(TestCase):
     def setUp(self):
         GovernmentScheme.objects.create(

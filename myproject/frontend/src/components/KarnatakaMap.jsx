@@ -1,5 +1,15 @@
 import { useState } from "react";
+import L from "leaflet";
 import { MapContainer, Marker, Popup, TileLayer, useMapEvents } from "react-leaflet";
+import markerIcon from "leaflet/dist/images/marker-icon.png";
+import markerIconRetina from "leaflet/dist/images/marker-icon-2x.png";
+import markerShadow from "leaflet/dist/images/marker-shadow.png";
+
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: markerIconRetina,
+  iconUrl: markerIcon,
+  shadowUrl: markerShadow,
+});
 
 const center = [14.5204, 75.7224];
 
@@ -31,7 +41,7 @@ export default function KarnatakaMap({ selected, onSelect }) {
         <p className="text-sm text-stone-500">{selected.lat}, {selected.lon}</p>
       </div>
       <div className="relative h-[420px]">
-        <MapContainer center={center} zoom={7} scrollWheelZoom>
+        <MapContainer className="h-full w-full" center={center} zoom={7} scrollWheelZoom>
           <TileLayer
             attribution='&copy; OpenStreetMap contributors &copy; CARTO'
             url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"

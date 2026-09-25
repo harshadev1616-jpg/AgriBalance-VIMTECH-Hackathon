@@ -39,18 +39,32 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarEleme
 
 const districts = ["Mandya", "Mysuru", "Belagavi", "Tumakuru", "Raichur", "Dharwad", "Bengaluru Urban"];
 const crops = ["Rice", "Ragi", "Jowar", "Maize", "Tur Dal", "Groundnut", "Cotton", "Sugarcane", "Tomato", "Millets"];
-const revenuePerHectare = 345851;
 
 const chartOptions = {
   responsive: true,
   maintainAspectRatio: false,
+  devicePixelRatio: typeof window !== "undefined" ? Math.min(window.devicePixelRatio || 1, 2) : 1,
+  resizeDelay: 100,
+  animation: false,
   plugins: {
     legend: { labels: { color: "#cbd5e1", boxWidth: 10 } },
     tooltip: { backgroundColor: "#0f172a", borderColor: "#334155", borderWidth: 1 },
   },
   scales: {
     x: { ticks: { color: "#94a3b8" }, grid: { color: "rgba(148, 163, 184, 0.08)" } },
-    y: { ticks: { color: "#94a3b8" }, grid: { color: "rgba(148, 163, 184, 0.08)" }, beginAtZero: true },
+    y: {
+      ticks: { color: "#94a3b8", stepSize: 20 },
+      grid: { color: "rgba(148, 163, 184, 0.08)" },
+      beginAtZero: true,
+    },
+  },
+};
+
+const comparisonChartOptions = {
+  ...chartOptions,
+  scales: {
+    ...chartOptions.scales,
+    y: { ...chartOptions.scales.y, max: 100 },
   },
 };
 
@@ -63,21 +77,9 @@ function numberValue(value) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function calculateProfit({ farmSize, budget, water }) {
-  const currentFarmSize = Number(farmSize);
-  const currentBudget = Number(budget);
-  const currentWater = Number(water);
-  const revenue = currentFarmSize * revenuePerHectare;
-  const netProfit = revenue - currentBudget;
-  const roi = currentBudget > 0 ? (netProfit / currentBudget) * 100 : 0;
-
-  return {
-    budget: currentBudget,
-    revenue,
-    netProfit,
-    roi,
-    risk: currentWater >= 70 ? "Low" : currentWater >= 40 ? "Medium" : "High",
-  };
+function scoreFromProfit(value) {
+  const profit = Number(value);
+  return Number.isFinite(profit) ? Math.max(0, Math.min(100, Math.round((profit + 45000) / 1450))) : null;
 }
 
 function Panel({ children, className = "" }) {
@@ -116,6 +118,10 @@ function ScoreBar({ label, value, tone = "bg-emerald-400" }) {
 
 function Skeleton() {
   return <div className="h-10 animate-pulse rounded-md bg-white/10" />;
+}
+
+function DataState({ children }) {
+  return <div className="flex min-h-48 items-center justify-center rounded-md border border-dashed border-white/10 px-4 text-center text-sm text-slate-500">{children}</div>;
 }
 
 function FieldSelect({ label, options, value, onChange }) {
@@ -165,6 +171,7 @@ export default function App() {
   const [budget, setBudget] = useState(290000);
   const [water, setWater] = useState(36);
   const [profit, setProfit] = useState(null);
+  const [calculatingProfit, setCalculatingProfit] = useState(false);
   const [question, setQuestion] = useState("Is tomato risky?");
   const [selected, setSelected] = useState({ lat: 12.9716, lon: 77.5946 });
   const [state, setState] = useState({
@@ -265,18 +272,29 @@ export default function App() {
   const heatmap = state.heatmap?.districts || [];
   const comparison = state.comparison?.districts || [];
   const bestCrop = topCrops[0];
-  const profitScore = profit ? Math.max(0, Math.min(100, Math.round((profit.netProfit + 45000) / 1450))) : 0;
+  const profitScore = bestCrop?.profit_score ?? null;
   const comparisonWithCalculatorProfit = comparison.map((item) =>
-    item.district === district && profit ? { ...item, profit: Math.round(profit.netProfit) } : item,
+    item.district === district && profit ? { ...item, profit: Math.round(profit.net_profit ?? profit.netProfit) } : item,
   );
 
-  function handleCalculateProfit() {
-    const result = calculateProfit({
-      farmSize: Number(farmSize),
-      budget: Number(budget),
-      water: Number(water),
-    });
-    setProfit(result);
+  async function handleCalculateProfit() {
+    setCalculatingProfit(true);
+    try {
+      const result = await api.profitCalculator({
+        district,
+        crop,
+        farm_size: Number(farmSize),
+        budget: Number(budget),
+        soil: "Loamy",
+        water: Number(water),
+      });
+      setProfit(result);
+      setError("");
+    } catch (err) {
+      setError(`Profit calculation unavailable: ${err.message}`);
+    } finally {
+      setCalculatingProfit(false);
+    }
   }
 
   const marketChart = useMemo(
@@ -299,9 +317,9 @@ export default function App() {
     () => ({
       labels: comparisonWithCalculatorProfit.map((item) => item.district),
       datasets: [
-        { label: "Profit", data: comparisonWithCalculatorProfit.map((item) => item.profit), backgroundColor: "#34d399" },
-        { label: "Demand", data: comparisonWithCalculatorProfit.map((item) => item.demand * 1000), backgroundColor: "#f59e0b" },
-        { label: "Supply risk", data: comparisonWithCalculatorProfit.map((item) => item.supply * 1000), backgroundColor: "#fb7185" },
+        { label: "Profit score", data: comparisonWithCalculatorProfit.map((item) => scoreFromProfit(item.profit)), backgroundColor: "#34d399" },
+        { label: "Demand", data: comparisonWithCalculatorProfit.map((item) => Number(item.demand)), backgroundColor: "#f59e0b" },
+        { label: "Supply risk", data: comparisonWithCalculatorProfit.map((item) => Number(item.supply)), backgroundColor: "#fb7185" },
       ],
     }),
     [comparisonWithCalculatorProfit],
@@ -328,9 +346,9 @@ export default function App() {
 
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Stat title="Best crop" value={bestCrop?.crop} icon={Leaf} />
-          <Stat title="Expected profit" value={profit ? currency(profit.netProfit) : "--"} icon={Wallet} tone="text-amber-300" />
-          <Stat title="Profit score" value={`${profitScore}/100`} icon={Gauge} tone="text-sky-300" />
-          <Stat title="Oversupply risk" value={bestCrop ? `${bestCrop.oversupply_risk}%` : "--"} icon={AlertTriangle} tone="text-rose-300" />
+          <Stat title="Expected profit" value={bestCrop ? currency(bestCrop.expected_profit) : "Data unavailable"} icon={Wallet} tone="text-amber-300" />
+          <Stat title="Profit score" value={profitScore == null ? "Not enough data" : `${profitScore}/100`} icon={Gauge} tone="text-sky-300" />
+          <Stat title="Oversupply risk" value={bestCrop ? `${bestCrop.oversupply_risk}%` : "Insufficient data"} icon={AlertTriangle} tone="text-rose-300" />
         </section>
 
         <section className="grid gap-5 lg:grid-cols-[1.15fr_0.85fr]">
@@ -404,7 +422,7 @@ export default function App() {
               <h2 className="text-xl font-semibold text-white">District Heatmap</h2>
             </div>
             <div className="mt-4 grid max-h-[560px] gap-2 overflow-auto pr-1">
-              {heatmap.map((item) => (
+              {heatmap.length ? heatmap.map((item) => (
                 <button
                   key={item.district}
                   className="grid grid-cols-[1fr_auto] items-center gap-3 rounded-md border border-white/10 bg-slate-900/70 p-3 text-left transition hover:border-emerald-300/50"
@@ -414,10 +432,13 @@ export default function App() {
                   <span>
                     <span className="block font-medium text-white">{item.district}</span>
                     <span className="mt-1 block text-xs text-slate-400">{item.best_crop} | rain {item.rainfall} mm | water {item.water_availability}/100</span>
+                    <span className="mt-2 block h-1.5 overflow-hidden rounded-full bg-slate-800">
+                      <span className={`block h-full rounded-full ${item.status === "green" ? "bg-emerald-400" : item.status === "yellow" ? "bg-amber-300" : "bg-rose-400"}`} style={{ width: `${Math.min(100, Math.max(0, Number(item.risk_index) || 0))}%` }} />
+                    </span>
                   </span>
                   <span className={`h-3 w-3 rounded-full ${item.status === "green" ? "bg-emerald-400" : item.status === "yellow" ? "bg-amber-300" : "bg-rose-400"}`} />
                 </button>
-              ))}
+              )) : <DataState>No district risk data available.</DataState>}
             </div>
           </Panel>
         </div>
@@ -430,7 +451,7 @@ export default function App() {
               <h2 className="text-xl font-semibold text-white">Smart District Comparison</h2>
             </div>
             <div className="mt-5 h-80">
-              <Bar data={comparisonChart} options={chartOptions} />
+              {comparison.length ? <Bar data={comparisonChart} options={comparisonChartOptions} /> : <DataState>District comparison data is unavailable.</DataState>}
             </div>
           </Panel>
         </div>
@@ -442,7 +463,7 @@ export default function App() {
               <h2 className="text-xl font-semibold text-white">Market Intelligence</h2>
             </div>
             <div className="mt-5 h-72">
-              <Line data={marketChart} options={chartOptions} />
+              {state.market?.price_forecast?.length ? <Line data={marketChart} options={chartOptions} /> : <DataState>Market trend data is unavailable.</DataState>}
             </div>
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
               <Stat title="Demand" value={`${state.market?.demand ?? "--"}/100`} icon={BarChart3} tone="text-emerald-300" />
@@ -491,9 +512,9 @@ export default function App() {
                   <p className="mt-2 text-sm text-slate-400">{scheme.benefits}</p>
                   {scheme.official_source_url ? <a className="mt-3 inline-block text-sm text-emerald-300 underline" href={scheme.official_source_url} target="_blank" rel="noreferrer">Official source</a> : null}
                 </article>
-              ))}
-            </div>
-          ) : (
+                ))}
+              </div>
+            ) : (
             <p className="mt-4 text-sm text-slate-400">No verified scheme records are connected yet. This area will remain empty until official records are added.</p>
           )}
         </Panel>
@@ -516,14 +537,14 @@ export default function App() {
                 onClick={handleCalculateProfit}
                 type="button"
               >
-                Calculate Profit
+                {calculatingProfit ? "Calculating..." : "Calculate Profit"}
               </button>
             </div>
             <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
-              <div className="rounded-md bg-white/10 p-3">Revenue<br /><strong>{profit ? currency(profit.revenue) : "--"}</strong></div>
-              <div className="rounded-md bg-white/10 p-3">Net profit<br /><strong>{profit ? currency(profit.netProfit) : "--"}</strong></div>
-              <div className="rounded-md bg-white/10 p-3">ROI<br /><strong>{profit ? `${profit.roi.toFixed(2)}%` : "--"}</strong></div>
-              <div className="rounded-md bg-white/10 p-3">Risk<br /><strong>{profit?.risk || "--"}</strong></div>
+              <div className="rounded-md bg-white/10 p-3">Revenue<br /><strong>{profit ? currency(profit.revenue) : "Data unavailable"}</strong></div>
+              <div className="rounded-md bg-white/10 p-3">Net profit<br /><strong>{profit ? currency(profit.net_profit) : "Data unavailable"}</strong></div>
+              <div className="rounded-md bg-white/10 p-3">ROI<br /><strong>{profit ? `${Number(profit.roi).toFixed(2)}%` : "Data unavailable"}</strong></div>
+              <div className="rounded-md bg-white/10 p-3">Risk<br /><strong>{profit?.risk || "Data unavailable"}</strong></div>
             </div>
           </Panel>
 
@@ -533,8 +554,10 @@ export default function App() {
               <h2 className="text-xl font-semibold text-white">Satellite Analytics</h2>
             </div>
             <div className="mt-5 grid gap-4">
-              <ScoreBar label="Vegetation index" value={Math.round((state.satellite?.vegetation_index || 0) * 100)} tone="bg-emerald-400" />
-              <ScoreBar label="Crop health" value={state.satellite?.crop_health} tone="bg-cyan-400" />
+              {state.satellite ? <>
+                <ScoreBar label="Vegetation index" value={Math.round((state.satellite.vegetation_index || 0) * 100)} tone="bg-emerald-400" />
+                <ScoreBar label="Crop health" value={state.satellite.crop_health} tone="bg-cyan-400" />
+              </> : <DataState>Crop monitoring data is unavailable.</DataState>}
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div className="rounded-md bg-white/10 p-3">Drought<br /><strong>{state.satellite?.drought_detection ? "Detected" : "Clear"}</strong></div>
                 <div className="rounded-md bg-white/10 p-3">Flood<br /><strong>{state.satellite?.flood_detection ? "Detected" : "Clear"}</strong></div>
