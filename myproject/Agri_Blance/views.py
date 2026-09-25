@@ -1,6 +1,7 @@
 from rest_framework.permissions import AllowAny, IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from django.db.utils import OperationalError
 
 from .ml import CropYieldPredictor
 from .serializers import (
@@ -218,7 +219,14 @@ class GovernmentSchemeListView(APIView):
                 filters.setdefault("farmer_category", profile.farmer_category)
                 if profile.crops and not filters.get("crop"):
                     filters["crop"] = profile.crops[0]
-        schemes = matching_schemes(filters)
+        try:
+            schemes = matching_schemes(filters)
+        except OperationalError:
+            return Response({
+                "count": 0,
+                "data_status": "unavailable_requires_migration",
+                "results": [],
+            })
         return Response({
             "count": len(schemes),
             "data_status": "verified_only" if all(item.is_verified for item in schemes) else "contains_unverified_admin_data",

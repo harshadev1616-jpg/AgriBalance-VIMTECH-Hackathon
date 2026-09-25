@@ -13,7 +13,7 @@ async function request(path, options = {}) {
 
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(payload.detail || "Request failed");
+    throw new Error(payload.detail || payload.error || payload.message || `Request failed (${response.status})`);
   }
   return payload;
 }

@@ -149,7 +149,7 @@ export default function App() {
       setLoading(true);
       setError("");
       try {
-        const [balancing, heatmap, comparison, market, notifications, satellite, admin, government, decision, schemes] = await Promise.all([
+        const results = await Promise.allSettled([
           api.cropBalancing({ district, water_availability: water }),
           api.districtHeatmap(),
           api.compareDistricts(["Mandya", "Mysuru", "Belagavi", "Tumakuru"]),
@@ -161,8 +161,24 @@ export default function App() {
           api.dailyDecision({ district, crop }),
           api.schemes({ state: "Karnataka", crop }),
         ]);
+        const values = results.map((result) => result.status === "fulfilled" ? result.value : null);
+        const [balancing, heatmap, comparison, market, notifications, satellite, admin, government, decision, schemes] = values;
+        const failures = results.filter((result) => result.status === "rejected");
         if (active) {
-          setState((current) => ({ ...current, balancing, heatmap, comparison, market, notifications, satellite, admin, government, decision, schemes }));
+          setState((current) => ({
+            ...current,
+            ...(balancing ? { balancing } : {}),
+            ...(heatmap ? { heatmap } : {}),
+            ...(comparison ? { comparison } : {}),
+            ...(market ? { market } : {}),
+            ...(notifications ? { notifications } : {}),
+            ...(satellite ? { satellite } : {}),
+            ...(admin ? { admin } : {}),
+            ...(government ? { government } : {}),
+            ...(decision ? { decision } : {}),
+            ...(schemes ? { schemes } : {}),
+          }));
+          setError(failures.length ? `${failures.length} data service${failures.length === 1 ? " is" : "s are"} temporarily unavailable. Available information is still shown.` : "");
         }
       } catch (err) {
         if (active) setError(err.message);
